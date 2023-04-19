@@ -13,13 +13,13 @@
   ],
   "emulators": {
     "functions": {
-      "port": 5001
+      "port": 5005
     },
     "firestore": {
-      "port": 8080
+      "port": 8086
     },
     "database": {
-      "port": 9000
+      "port": 9003
     },
     "ui": {
       "enabled": true
