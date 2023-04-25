@@ -1,8 +1,12 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const request = require('request-promise');
+const algoliasearch = require('algoliasearch');
 
 const REGION = "asia-east2";
+const ALGOLIA_APP_ID = "ECRWTI6NJR";
+const ALGOLIA_ADMIN_KEY = "12adfde0362145297237b7621bba577b";
+const ALGOLIA_INDEX_NAME = "province_list";
 
 // line
 const LINE_MESSAGING_API = 'https://api.line.me/v2/bot/message';
@@ -139,3 +143,132 @@ const reply = (bodyResponse) => {
         })
     }); */
 };
+
+exports.importProvicne = functions.region(REGION).https.onRequest(async (request, response) => {
+    let name = '';
+    const postCode = 'test';
+
+    const provinceName = [
+        'กรุงเทพฯ',
+        'กระบี่',
+        'กาญจนบุรี',
+        'กาฬสินธุ์',
+        'กำแพงเพชร',
+        'ขอนแก่น',
+        'จันทบุรี',
+        'ฉะเชิงเทรา',
+        'ชลบุรี',
+        'ชัยนาท',
+        'ชัยภูมิ',
+        'ชุมพร',
+        'เชียงใหม่',
+        'เชียงราย',
+        'ตรัง',
+        'ตราด',
+        'ตาก',
+        'นครนายก',
+        'นครปฐม',
+        'นครพนม',
+        'นครราชสีมา',
+        'นครศรีธรรมราช',
+        'นครสวรรค์',
+        'นนทบุรี',
+        'นราธิวาส',
+        'น่าน',
+        'บึงกาฬ',
+        'บุรีรัมย์',
+        'ปทุมธานี',
+        'ประจวบคีรีขันธ์',
+        'ปราจีนบุรี',
+        'ปัตตานี',
+        'พระนครศรีอยุธยา',
+        'พะเยา',
+        'พังงา',
+        'พัทลุง',
+        'พิจิตร',
+        'พิษณุโลก',
+        'เพชรบุรี',
+        'เพชรบูรณ์',
+        'แพร่',
+        'ภูเก็ต',
+        'มหาสารคาม',
+        'มุกดาหาร',
+        'แม่ฮ่องสอน',
+        'ยโสธร',
+        'ยะลา',
+        'ร้อยเอ็ด',
+        'ระนอง',
+        'ระยอง',
+        'ราชบุรี',
+        'ลพบุรี',
+        'ลำปาง',
+        'ลำพูน',
+        'เลย',
+        'ศรีสะเกษ',
+        'สกลนคร',
+        'สงขลา',
+        'สตูล',
+        'สมุทรปราการ',
+        'สมุทรสงคราม',
+        'สมุทรสาคร',
+        'สระแก้ว',
+        'สระบุรี',
+        'สิงห์บุรี',
+        'สุโขทัย',
+        'สุพรรณบุรี',
+        'สุราษฎร์ธานี',
+        'สุรินทร์',
+        'หนองคาย',
+        'หนองบัวลำภู',
+        'อ่างทอง',
+        'อำนาจเจริญ',
+        'อุดรธานี',
+        'อุตรดิตถ์',
+        'อุทัยธานี',
+        'อุบลราชธานี',
+    ];
+
+    console.log("provinceName");
+    console.log(provinceName.length);
+    for (let i = 0; i < provinceName.length; i++) {
+        name = provinceName[i];
+        const lastID = await getLastID('province_list');
+        await db.collection('province_list').add({
+            "id": lastID,
+            "name": name,
+            "postCode": postCode
+        });
+    }
+
+
+    return response.json({ status: true, msg: 'บันทึกข้อมูลเรียบร้อยแล้ว' });
+});
+
+exports.createProvince = functions.firestore.document('province_list/{provinceID}').onCreate(async (snap, context) => {
+    const newValue = snap.data();
+    newValue.objectID = snap.id;
+    var client = algoliasearch(ALGOLIA_APP_ID, ALGOLIA_ADMIN_KEY);
+
+    var index = client.initIndex(ALGOLIA_INDEX_NAME);
+    index.saveObject(newValue);
+    console.log('createProvince done');
+});
+
+exports.updateProvince = functions.firestore.document('province_list/{provinceID}').onUpdate(async (snap, context) => {
+    const afterUpdate = snap.after.data();
+    afterUpdate.objectID = snap.after.id;
+    var client = algoliasearch(ALGOLIA_APP_ID, ALGOLIA_ADMIN_KEY);
+
+    var index = client.initIndex(ALGOLIA_INDEX_NAME);
+    index.saveObject(afterUpdate);
+    console.log('updateProvince done');
+});
+
+exports.deleteProvince = functions.firestore.document('province_list/{provinceID}').onDelete(async (snap, context) => {
+    const oldID = snap.id;
+    var client = algoliasearch(ALGOLIA_APP_ID, ALGOLIA_ADMIN_KEY);
+
+    var index = client.initIndex(ALGOLIA_INDEX_NAME);
+    index.deleteObject(oldID);
+    console.log('deleteProvince done');
+});
