@@ -1,6 +1,6 @@
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
-const request = require('request-promise');
+const request = require('request');
 const algoliasearch = require('algoliasearch');
 
 const REGION = "asia-east2";
@@ -17,6 +17,13 @@ const LINE_HEADER = {
 
 admin.initializeApp();
 const db = admin.firestore();
+const storage = admin.storage();
+const os = require('os');
+const path = require('path');
+const fs = require('fs');
+const Busboy = require('busboy');
+const multer = require('multer');
+const upload = multer({ dest: '' });
 
 function isEmpty(checkValue) {
     if (checkValue === undefined || checkValue === null || checkValue === "" || checkValue + "" === "null") {
@@ -272,3 +279,110 @@ exports.deleteProvince = functions.firestore.document('province_list/{provinceID
     index.deleteObject(oldID);
     console.log('deleteProvince done');
 });
+
+exports.uploadPhoto = functions.https.onRequest(async (req, res) => {
+    try {
+        if (req.method !== 'POST') {
+            return res.status(405).send('Method Not Allowed');
+        }
+
+        const photoData = req.body.photo;
+        const filename = `${Date.now()}_${Math.random().toString(36).substring(2)}.jpg`; // Generate a unique filename for the photo
+
+        // Create a buffer from the base64 photo data
+        const photoBuffer = Buffer.from(photoData, 'base64');
+
+        const bucket = storage.bucket();
+        const fileUpload = bucket.file(`photos/${filename}`);
+        const fileStream = fileUpload.createWriteStream({ contentType: 'image/jpeg' }); // Replace 'image/jpeg' with the actual content type of the photo if needed
+
+        fileStream.on('error', (error) => {
+            console.error('Error uploading photo:', error);
+            res.status(500).send('Error uploading photo.');
+        });
+
+        fileStream.on('finish', async () => {
+            try {
+                // Make the photo publicly accessible
+                await fileUpload.makePublic();
+
+                const url = `https://storage.googleapis.com/${bucket.name}/${fileUpload.name}`;
+                res.status(200).send(url);
+            } catch (error) {
+                console.error('Error making photo public:', error);
+                res.status(500).send('Error making photo public.');
+            }
+        });
+
+        fileStream.end(photoBuffer);
+    } catch (error) {
+        console.error('Error processing photo upload:', error);
+        res.status(500).send('Error processing photo upload.');
+    }
+});
+
+exports.uploadPhotoAndGetURL = functions.https.onRequest(async (req, res) => {
+    try {
+        if (req.method !== 'POST') {
+            return res.status(405).send('Method Not Allowed');
+        }
+
+        const photoData = req.body.photo;
+
+        const arrPhoto = photoData.split(",");
+        console.log("arrPhoto.length");
+        console.log(arrPhoto.length);
+
+        const arrUrl = [];
+
+        for (var i = 0; i < arrPhoto.length; i++) {
+            var url = await uploadingFile(arrPhoto[i]);
+            arrUrl.push(url);
+        }
+
+        try {
+            console.log("success");
+            console.log(arrUrl);
+            res.status(200).send(arrUrl.join(","));
+        } catch (error) {
+            console.error('Error making photo public:', error);
+            res.status(500).send('Error making photo public.');
+        }
+
+
+    } catch (error) {
+        console.error('Error processing photo upload:', error);
+        res.status(500).send('Error processing photo upload.');
+    }
+});
+
+async function uploadingFile(arrPhoto) {
+    const filename = `${Date.now()}_${Math.random().toString(36).substring(2)}.jpg`; // Generate a unique filename for the photo
+
+    // Create a buffer from the base64 photo data
+    const photoBuffer = Buffer.from(arrPhoto, 'base64');
+
+    const bucket = storage.bucket();
+    const fileUpload = bucket.file(`photos/${filename}`);
+    const fileStream = fileUpload.createWriteStream({ contentType: 'image/jpeg' }); // Replace 'image/jpeg' with the actual content type of the photo if needed
+
+    const uploadPromise = new Promise((resolve, reject) => {
+        fileStream.on('error', (error) => {
+            reject(error);
+        });
+
+        fileStream.on('finish', async () => {
+            try {
+                await fileUpload.makePublic();
+                const url = `https://storage.googleapis.com/${bucket.name}/${fileUpload.name}`;
+                resolve(url);
+            } catch (error) {
+                reject(error);
+            }
+        });
+
+        fileStream.end(photoBuffer);
+    });
+    var rs = await uploadPromise;
+    return rs;
+}
