@@ -386,3 +386,60 @@ async function uploadingFile(arrPhoto) {
     var rs = await uploadPromise;
     return rs;
 }
+
+exports.dataList = functions.region(REGION).https.onRequest(async (request, response) => {
+
+    const snapshot = await db.collection('data_list').get();
+    if (snapshot.empty) {
+        return response.json({ status: false, msg: 'ไม่มีข้อมูล', data: [] });
+    }
+    let dataList = [];
+    snapshot.docs.forEach((e) => {
+        dataList[dataList.length] = {
+            id: e.ref.id,
+            name: e.data().name,
+            detail: e.data().detail,
+            searchText: e.data().searchText,
+            is_check: e.data().is_check,
+        }
+    })
+    return response.json({ status: true, msg: '', data: dataList });
+});
+
+exports.dataListDel = functions.region(REGION).https.onRequest(async (request, response) => {
+
+    const docID = request.query.docID ?? '';
+
+    if(isEmpty(docID)){
+        return response.json({ status: false, msg: 'ไม่มีข้อมูล' });
+    }
+
+    var rs = await db.collection('data_list').doc(docID).get();
+
+    if(!rs.exists){
+        return response.json({ status: false, msg: 'ไม่มีข้อมูล : ' + docID });
+    }
+
+    db.doc(rs.ref.path).delete();
+
+    return response.json({ status: true, msg: 'ลบข้อมูลเรียบร้อยแล้ว' });
+});
+
+exports.dataListCheck = functions.region(REGION).https.onRequest(async (request, response) => {
+
+    const docID = request.query.docID ?? '';
+
+    if(isEmpty(docID)){
+        return response.json({ status: false, msg: 'ไม่มีข้อมูล' });
+    }
+
+    var rs = await db.collection('data_list').doc(docID).get();
+
+    if(!rs.exists){
+        return response.json({ status: false, msg: 'ไม่มีข้อมูล : ' + docID });
+    }
+
+    db.collection('data_list').doc(docID).update({"is_check" : rs.data().is_check ? false : true});
+
+    return response.json({ status: true, msg: 'ลบข้อมูลเรียบร้อยแล้ว' });
+});
