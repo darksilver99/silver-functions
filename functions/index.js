@@ -3,6 +3,9 @@ const admin = require("firebase-admin");
 const request = require('request');
 const algoliasearch = require('algoliasearch');
 
+const { FieldValue } = require('firebase-admin').firestore;
+
+
 const REGION = "asia-east2";
 const ALGOLIA_APP_ID = "ECRWTI6NJR";
 const ALGOLIA_ADMIN_KEY = "12adfde0362145297237b7621bba577b";
@@ -410,13 +413,13 @@ exports.dataListDel = functions.region(REGION).https.onRequest(async (request, r
 
     const docID = request.query.docID ?? '';
 
-    if(isEmpty(docID)){
+    if (isEmpty(docID)) {
         return response.json({ status: false, msg: 'ไม่มีข้อมูล' });
     }
 
     var rs = await db.collection('data_list').doc(docID).get();
 
-    if(!rs.exists){
+    if (!rs.exists) {
         return response.json({ status: false, msg: 'ไม่มีข้อมูล : ' + docID });
     }
 
@@ -429,17 +432,63 @@ exports.dataListCheck = functions.region(REGION).https.onRequest(async (request,
 
     const docID = request.query.docID ?? '';
 
-    if(isEmpty(docID)){
+    if (isEmpty(docID)) {
         return response.json({ status: false, msg: 'ไม่มีข้อมูล' });
     }
 
     var rs = await db.collection('data_list').doc(docID).get();
 
-    if(!rs.exists){
+    if (!rs.exists) {
         return response.json({ status: false, msg: 'ไม่มีข้อมูล : ' + docID });
     }
 
-    db.collection('data_list').doc(docID).update({"is_check" : rs.data().is_check ? false : true});
+    db.collection('data_list').doc(docID).update({ "is_check": rs.data().is_check ? false : true });
 
     return response.json({ status: true, msg: 'ลบข้อมูลเรียบร้อยแล้ว' });
+});
+
+exports.omiseWebhook = functions.region(REGION).https.onRequest(async (request, response) => {
+    // const name = request.query.name ?? '';
+
+    if (request.method == "POST") {
+        db.collection('omise_test_webhook').add({
+            "query": request.body,
+            "id": request.body.data.id,
+            "create_date": new Date(),
+            "method": "POST",
+        });
+        const rs = await db.collection('tranfer_history_list').where("payment_id", "==", request.body.data.id).get();
+        if (rs.size != 0) {
+            console.log("request.body.data.status");
+            console.log(request.body.data.status);
+            if (request.body.data.status == "successful") {
+                rs.docs[0].ref.update({
+                    "status": 1,
+                    "pay_date": new Date(),
+                });
+
+                console.log("rs.docs[0].data().credit");
+                console.log(rs.docs[0].data().credit);
+                console.log(rs.docs[0].data().create_by.path);
+
+                rs.docs[0].data().create_by.update({
+                    'credit': FieldValue.increment(rs.docs[0].data().credit),
+                });
+
+                /*  db.doc(rs.docs[0].data().create_by.path).update({
+                     'credit': FieldValue.increment(rs.docs[0].data().credit),
+                 }); */
+
+            } else if (request.body.data.status == "failed") {
+                rs.docs[0].ref.update({
+                    "status": 2,
+                    "pay_cancel_date": new Date(),
+                });
+            }
+        }
+
+    }
+
+
+    return response.json({ status: true, msg: 'บันทึกข้อมูลเรียบร้อยแล้ว' });
 });
