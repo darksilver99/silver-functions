@@ -457,33 +457,43 @@ exports.omiseWebhook = functions.region(REGION).https.onRequest(async (request, 
             "create_date": new Date(),
             "method": "POST",
         });
-        const rs = await db.collection('tranfer_history_list').where("payment_id", "==", request.body.data.id).get();
+        const rs = await db.collection('payment_history_list').where("payment_order", "==", request.body.data.id).get();
         if (rs.size != 0) {
             console.log("request.body.data.status");
             console.log(request.body.data.status);
             if (request.body.data.status == "successful") {
                 rs.docs[0].ref.update({
                     "status": 1,
-                    "pay_date": new Date(),
+                    "payment_date": new Date(),
                 });
 
-                console.log("rs.docs[0].data().credit");
-                console.log(rs.docs[0].data().credit);
-                console.log(rs.docs[0].data().create_by.path);
-
+                //set credit
                 rs.docs[0].data().create_by.update({
-                    'credit': FieldValue.increment(rs.docs[0].data().credit),
+                    'credit': FieldValue.increment(rs.docs[0].data().amount),
                 });
 
-                /*  db.doc(rs.docs[0].data().create_by.path).update({
-                     'credit': FieldValue.increment(rs.docs[0].data().credit),
-                 }); */
-
+                //set status tranfer
+                const rsTranfer = await db.collection('tranfer_history_list').where("payment_ref", "==", rs.docs[0].ref).get();
+                if (rsTranfer.size != 0) {
+                    rsTranfer.docs[0].ref.update({
+                        'status': 1,
+                        'tranfer_date': new Date(),
+                    });
+                }
             } else if (request.body.data.status == "failed") {
                 rs.docs[0].ref.update({
                     "status": 2,
-                    "pay_cancel_date": new Date(),
+                    "payment_cancel_date": new Date(),
                 });
+
+                //set status tranfer
+                const rsTranfer = await db.collection('tranfer_history_list').where("payment_ref", "==", rs.docs[0].ref).get();
+                if (rsTranfer.size != 0) {
+                    rsTranfer.docs[0].ref.update({
+                        'status': 2,
+                    });
+                }
+
             }
         }
 
